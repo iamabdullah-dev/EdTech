@@ -10,12 +10,16 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null);
+  const [authenticated, setAuthenticated] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     // Move ALL localStorage access into the effect
     const checkAuth = () => {
-      if (isAuthenticated()) {
+      const authStatus = isAuthenticated();
+      setAuthenticated(authStatus);
+      
+      if (authStatus) {
         const currentUser = getCurrentUser();
         setUser(currentUser);
         setUserType(currentUser.userType);
@@ -33,6 +37,7 @@ const Navbar = () => {
     clearUserData();
     setUser(null);
     setUserType(null);
+    setAuthenticated(false);
     router.push('/');
   };
 
@@ -45,40 +50,48 @@ const Navbar = () => {
               <span className="text-2xl font-bold text-blue-600">🏉 EdTech</span>
             </Link>
             <div className="hidden md:ml-6 md:flex md:space-x-8">
-              {/* Always render all links but conditionally set visibility */}
+              {/* Public link - visible to everyone */}
               <Link 
-                className={`inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-700 ${userType === 'tutor' ? 'hidden' : ''}`} 
+                className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-700" 
                 href="/courses"
               >
                 Courses
               </Link>
               
-              <Link 
-                className={`inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-700 ${userType === 'student' ? '' : 'hidden'}`}
-                href="/my-learning"
-              >
-                My Learning
-              </Link>
+              {/* Student-only link */}
+              {authenticated && userType === 'student' && (
+                <Link 
+                  className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-700"
+                  href="/my-learning"
+                >
+                  My Learning
+                </Link>
+              )}
               
-              <Link 
-                className={`inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-700 ${userType === 'tutor' ? '' : 'hidden'}`}
-                href="/my-courses"
-              >
-                My Courses
-              </Link>
-              
-              <Link 
-                className={`inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-700 ${userType === 'tutor' ? '' : 'hidden'}`}
-                href="/stats"
-              >
-                Stats
-              </Link>
+              {/* Tutor-only links */}
+              {authenticated && userType === 'tutor' && (
+                <>
+                  <Link 
+                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-700"
+                    href="/my-courses"
+                  >
+                    My Courses
+                  </Link>
+                  
+                  <Link 
+                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-700"
+                    href="/stats"
+                  >
+                    Stats
+                  </Link>
+                </>
+              )}
             </div>
           </div>
           <div className="hidden md:ml-6 md:flex md:items-center">
-            {user ? (
+            {authenticated ? (
               <div className="ml-3 relative flex items-center space-x-4">
-                <span className="text-sm font-medium text-gray-700">{user.fullName || user.full_name || user.name || user.email}</span>
+                <span className="text-sm font-medium text-gray-700">{user?.fullName || user?.full_name || user?.name || user?.email}</span>
                 <button
                   onClick={handleLogout}
                   className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -113,37 +126,45 @@ const Navbar = () => {
       {isOpen && (
         <div className="md:hidden">
           <div className="pt-2 pb-3 space-y-1">
-            {/* Mobile menu links with the same conditional approach */}
+            {/* Public link - visible to everyone */}
             <Link 
-              className={`block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 ${userType === 'tutor' ? 'hidden' : ''}`}
+              className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800"
               href="/courses"
             >
               Courses
             </Link>
             
-            <Link 
-              className={`block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 ${userType === 'student' ? '' : 'hidden'}`}
-              href="/my-learning"
-            >
-              My Learning
-            </Link>
+            {/* Student-only link */}
+            {authenticated && userType === 'student' && (
+              <Link 
+                className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800"
+                href="/my-learning"
+              >
+                My Learning
+              </Link>
+            )}
             
-            <Link 
-              className={`block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 ${userType === 'tutor' ? '' : 'hidden'}`}
-              href="/my-courses"
-            >
-              My Courses
-            </Link>
-            
-            <Link 
-              className={`block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 ${userType === 'tutor' ? '' : 'hidden'}`}
-              href="/stats"
-            >
-              Stats
-            </Link>
+            {/* Tutor-only links */}
+            {authenticated && userType === 'tutor' && (
+              <>
+                <Link 
+                  className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800"
+                  href="/my-courses"
+                >
+                  My Courses
+                </Link>
+                
+                <Link 
+                  className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800"
+                  href="/stats"
+                >
+                  Stats
+                </Link>
+              </>
+            )}
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200">
-            {user ? (
+            {authenticated ? (
               <div>
                 <div className="flex items-center px-4">
                   <div className="flex-shrink-0">
@@ -152,8 +173,8 @@ const Navbar = () => {
                     </div>
                   </div>
                   <div className="ml-3">
-                    <div className="text-base font-medium text-gray-800">{user.fullName || user.full_name || user.name || user.email}</div>
-                    <div className="text-sm font-medium text-gray-500">{user.email}</div>
+                    <div className="text-base font-medium text-gray-800">{user?.fullName || user?.full_name || user?.name || user?.email}</div>
+                    <div className="text-sm font-medium text-gray-500">{user?.email}</div>
                   </div>
                 </div>
                 <div className="mt-3 space-y-1">
