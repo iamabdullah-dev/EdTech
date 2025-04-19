@@ -212,9 +212,173 @@ const getCourseEnrollments = async (req, res) => {
   }
 };
 
+// @desc    Check if a student is enrolled in a course
+// @route   POST /api/enrollments/check
+// @access  Public
+const checkEnrollmentStatus = async (req, res) => {
+  const { studentId, courseId } = req.body;
+
+  if (!studentId || !courseId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Student ID and Course ID are required',
+    });
+  }
+
+  try {
+    const result = await db.query(
+      'SELECT * FROM enrollments WHERE student_id = $1 AND course_id = $2',
+      [studentId, courseId]
+    );
+
+    res.json({
+      success: true,
+      isEnrolled: result.rows.length > 0,
+      enrollment: result.rows[0] || null
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Update video progress for an enrollment
+// @route   POST /api/enrollments/:id/progress
+// @access  Public
+const updateVideoProgress = async (req, res) => {
+  const { id } = req.params;
+  const { videoId, isCompleted, lastPosition } = req.body;
+
+  if (!videoId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Video ID is required',
+    });
+  }
+
+  try {
+    // Check if enrollment exists
+    const enrollmentCheck = await db.query(
+      'SELECT * FROM enrollments WHERE id = $1',
+      [id]
+    );
+
+    if (enrollmentCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Enrollment not found',
+      });
+    }
+
+    // Check if video exists and belongs to the course
+    const videoCheck = await db.query(
+      'SELECT v.* FROM videos v JOIN courses c ON v.course_id = c.id JOIN enrollments e ON c.id = e.course_id WHERE v.id = $1 AND e.id = $2',
+      [videoId, id]
+    );
+
+    if (videoCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found or not part of this course',
+      });
+    }
+
+    // Check if progress entry exists
+    const progressCheck = await db.query(
+      'SELECT * FROM video_progress WHERE enrollment_id = $1 AND video_id = $2',
+      [id, videoId]
+    );
+
+    let result;
+
+    if (progressCheck.rows.length === 0) {
+      // Create new progress entry
+      result = await db.query(
+        `INSERT INTO video_progress (enrollment_id, video_id, is_completed, last_watched_position) 
+         VALUES ($1, $2, $3, $4) 
+         RETURNING *`,
+        [id, videoId, isCompleted || false, lastPosition || 0]
+      );
+    } else {
+      // Update existing progress entry
+      const updateData = [];
+      const updateValues = [id, videoId];
+      let updateIndex = 3;
+      let updateQuery = 'UPDATE video_progress SET ';
+
+      if (isCompleted !== undefined) {
+        updateData.push(`is_completed = $${updateIndex}`);
+        updateValues.push(isCompleted);
+        updateIndex++;
+      }
+
+      if (lastPosition !== undefined) {
+        updateData.push(`last_watched_position = $${updateIndex}`);
+        updateValues.push(lastPosition);
+        updateIndex++;
+      }
+
+      updateQuery += updateData.join(', ');
+      updateQuery += ' WHERE enrollment_id = $1 AND video_id = $2 RETURNING *';
+
+      result = await db.query(updateQuery, updateValues);
+    }
+
+    // Update course progress if video was marked as completed
+    if (isCompleted) {
+      // Count total completed videos
+      const completedCount = await db.query(
+        'SELECT COUNT(*) FROM video_progress WHERE enrollment_id = $1 AND is_completed = true',
+        [id]
+      );
+      
+      // Count total videos in the course
+      const totalCount = await db.query(
+        `SELECT COUNT(*) FROM videos v 
+         JOIN courses c ON v.course_id = c.id 
+         JOIN enrollments e ON c.id = e.course_id 
+         WHERE e.id = $1`,
+        [id]
+      );
+      
+      const videosCompleted = parseInt(completedCount.rows[0].count);
+      const totalVideos = parseInt(totalCount.rows[0].count);
+      
+      // Update the course_progress table
+      await db.query(
+        `UPDATE course_progress SET 
+         videos_completed = $1, 
+         total_videos = $2,
+         progress_percentage = $3,
+         completion_date = CASE WHEN $1 = $2 THEN CURRENT_TIMESTAMP ELSE completion_date END
+         WHERE enrollment_id = $4`,
+        [videosCompleted, totalVideos, Math.round((videosCompleted / totalVideos) * 100), id]
+      );
+    }
+
+    res.json({
+      success: true,
+      progress: result.rows[0],
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   enrollInCourse,
   getStudentEnrollments,
   getEnrollment,
   getCourseEnrollments,
+  checkEnrollmentStatus,
+  updateVideoProgress
 }; 

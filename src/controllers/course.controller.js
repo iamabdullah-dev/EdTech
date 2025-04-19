@@ -5,14 +5,38 @@ const db = require('../config/db');
 // @access  Public
 const getCourses = async (req, res) => {
   try {
-    // Get basic course information
-    const coursesResult = await db.query(`
-      SELECT c.*, u.full_name as tutor_name 
-      FROM courses c
-      JOIN users u ON c.tutor_id = u.id
-      WHERE c.is_published = true
-      ORDER BY c.created_at DESC
-    `);
+    console.log('GET /api/courses endpoint called');
+
+    // Try a simpler query first without joins to isolate the issue
+    const simpleCourseQuery = await db.query(`SELECT * FROM courses`);
+    console.log(`Simple query found ${simpleCourseQuery.rows.length} courses`);
+
+    // Get basic course information - temporarily removing the is_published filter for debugging
+    let coursesResult;
+    try {
+      coursesResult = await db.query(`
+        SELECT c.*, u.full_name as tutor_name 
+        FROM courses c
+        JOIN users u ON c.tutor_id = u.id
+        ORDER BY c.created_at DESC
+      `);
+      console.log(`JOIN query found ${coursesResult.rows.length} courses`);
+    } catch (joinError) {
+      console.error('Error with JOIN query:', joinError);
+      // Fallback to simple query without JOIN if the JOIN fails
+      coursesResult = { rows: simpleCourseQuery.rows };
+      console.log('Using simple query results as fallback');
+    }
+
+    // If no courses were found, return an empty array instead of doing more processing
+    if (coursesResult.rows.length === 0) {
+      return res.json({
+        success: true,
+        count: 0,
+        courses: [],
+        message: 'No courses found in database'
+      });
+    }
 
     const courses = await Promise.all(coursesResult.rows.map(async (course) => {
       // Get enrollment count for each course
@@ -40,13 +64,15 @@ const getCourses = async (req, res) => {
       };
     }));
 
+    console.log(`Processed ${courses.length} courses with details`);
+
     res.json({
       success: true,
       count: courses.length,
       courses: courses,
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error in getCourses:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
