@@ -116,7 +116,7 @@ export default function MyLearningPage() {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {enrollments.map((enrollment) => (
-                <CourseCard key={enrollment.id} course={enrollment.course} />
+                <CourseCard key={enrollment.id} course={enrollment.course || enrollment} type="enrolled" />
               ))}
             </div>
           </div>

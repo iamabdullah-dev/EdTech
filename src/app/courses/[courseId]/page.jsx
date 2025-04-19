@@ -1,14 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FiArrowLeft, FiCheck, FiClock, FiUser, FiVideo, FiCalendar, FiDollarSign, FiBookOpen } from 'react-icons/fi';
 import { API_URL } from '@/lib/utils/constants';
 import { isAuthenticated, getCurrentUser, isStudent } from '@/lib/utils/auth';
+import PaymentModal from '@/components/payment/PaymentModal';
+import toast from 'react-hot-toast';
 
 export default function CourseDetailPage({ params }) {
-  const { courseId } = params;
+  // Unwrap the params which are now a Promise in Next.js 15.3.1+
+  const unwrappedParams = use(params);
+  const { courseId } = unwrappedParams;
   const router = useRouter();
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,6 +20,7 @@ export default function CourseDetailPage({ params }) {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -85,7 +90,7 @@ export default function CourseDetailPage({ params }) {
     }
   };
   
-  const handleEnroll = async () => {
+  const handleEnrollClick = () => {
     if (!isAuthenticated()) {
       router.push('/auth/login');
       return;
@@ -96,6 +101,16 @@ export default function CourseDetailPage({ params }) {
       return;
     }
     
+    // For free courses, enroll directly
+    if (course.price === 0 || course.price === "0.00" || parseFloat(course.price) === 0) {
+      handleEnroll();
+    } else {
+      // For paid courses, show payment modal
+      setShowPaymentModal(true);
+    }
+  };
+  
+  const handleEnroll = async () => {
     try {
       setEnrolling(true);
       
@@ -117,16 +132,26 @@ export default function CourseDetailPage({ params }) {
       
       if (response.ok && data.success) {
         setIsEnrolled(true);
-        router.push('/my-learning');
+        toast.success(`Successfully enrolled in ${course.title}`);
+        router.push(`/my-learning/${course.id}`);
       } else {
         throw new Error(data.message || 'Failed to enroll');
       }
     } catch (error) {
       console.error('Error enrolling in course:', error);
       setError(error.message || 'Failed to enroll in course');
+      toast.error('Failed to enroll in course');
     } finally {
       setEnrolling(false);
+      setShowPaymentModal(false);
     }
+  };
+  
+  const handlePaymentComplete = () => {
+    // Payment was completed, redirect to course content page
+    setIsEnrolled(true);
+    setShowPaymentModal(false);
+    router.push(`/my-learning/${course.id}`);
   };
   
   if (loading) {
@@ -179,8 +204,25 @@ export default function CourseDetailPage({ params }) {
     thumbnailUrl = `${API_URL}${thumbnailUrl}`;
   }
   
+  const handleViewContent = () => {
+    // Skip enrollment check and directly view content
+    if (course && course.id) {
+      router.push(`/my-learning/${course.id}`);
+    }
+  };
+  
   return (
     <div className="bg-gray-50 min-h-screen py-8">
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          course={course}
+          onPaymentComplete={handlePaymentComplete}
+        />
+      )}
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Navigation link */}
         <Link href="/courses" className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 mb-6">
@@ -237,7 +279,7 @@ export default function CourseDetailPage({ params }) {
                 </div>
               </div>
               
-              {/* Video list preview */}
+              {/* Video list preview - Display all videos instead of just 3 */}
               <div>
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Course Content</h2>
                 {course.videos && course.videos.length > 0 ? (
@@ -249,7 +291,7 @@ export default function CourseDetailPage({ params }) {
                       </div>
                     </div>
                     <ul className="divide-y divide-gray-200">
-                      {course.videos.slice(0, 3).map((video, index) => (
+                      {course.videos.map((video, index) => (
                         <li key={video.id} className="p-4 flex items-center">
                           <div className="mr-4 text-gray-400 font-medium">{index + 1}</div>
                           <div className="flex-1">
@@ -262,11 +304,6 @@ export default function CourseDetailPage({ params }) {
                         </li>
                       ))}
                     </ul>
-                    {course.videos.length > 3 && (
-                      <div className="p-4 text-center text-sm text-gray-500">
-                        {course.videos.length - 3} more videos not shown
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-gray-500 text-center">
@@ -299,74 +336,67 @@ export default function CourseDetailPage({ params }) {
                     </li>
                   </ul>
                   
-                  {isEnrolled ? (
-                    <div>
-                      <button
-                        className="w-full bg-green-600 text-white py-3 px-4 rounded-md font-medium flex items-center justify-center gap-2 cursor-default"
-                        disabled
-                      >
-                        <FiCheck className="h-5 w-5" /> Already Enrolled
-                      </button>
-                      <Link
-                        href="/my-learning"
-                        className="mt-4 w-full text-center block text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        Go to My Learning
-                      </Link>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleEnroll}
-                      disabled={enrolling || !isAuthenticated() || !isStudent()}
-                      className={`w-full ${
-                        !isAuthenticated() || !isStudent()
-                          ? 'bg-gray-400'
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      } text-white py-3 px-4 rounded-md font-medium flex items-center justify-center`}
-                    >
-                      {enrolling ? (
-                        <>
-                          <div className="mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
-                          Enrolling...
-                        </>
-                      ) : !isAuthenticated() ? (
-                        'Login to Enroll'
-                      ) : !isStudent() ? (
-                        'Only Students Can Enroll'
-                      ) : (
-                        <>
-                          {course.price === 0 || course.price === "0.00" ? 'Enroll Now (Free)' : (
-                            <>
-                              <FiDollarSign className="mr-1" /> Enroll Now
-                            </>
-                          )}
-                        </>
-                      )}
-                    </button>
-                  )}
-                  
+                  {/* Direct View Content Button */}
+                  <button
+                    onClick={handleViewContent}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-md font-medium flex items-center justify-center"
+                  >
+                    <FiVideo className="mr-2" /> View Course Content
+                  </button>
+                
                   {error && (
                     <div className="text-red-500 text-sm text-center">{error}</div>
-                  )}
-                  
-                  {!isAuthenticated() && (
-                    <div className="text-center mt-4">
-                      <Link href="/auth/login" className="text-blue-600 hover:text-blue-800 font-medium">
-                        Login
-                      </Link>{' '}
-                      or{' '}
-                      <Link href="/auth/register" className="text-blue-600 hover:text-blue-800 font-medium">
-                        Register
-                      </Link>{' '}
-                      to enroll
-                    </div>
                   )}
                 </div>
               </div>
             </div>
           </div>
+          
+          {/* Full Video Player Section */}
+          {course.videos && course.videos.length > 0 && (
+            <div className="p-6 md:p-8">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Watch Preview</h2>
+              <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                {course.videos[0] && (course.videos[0].video_url || course.videos[0].url) ? (
+                  <iframe 
+                    src={getEmbedUrl(course.videos[0].video_url || course.videos[0].url)} 
+                    className="w-full h-full" 
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    title={course.videos[0].title}
+                  ></iframe>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    <div className="text-center">
+                      <FiVideo className="h-12 w-12 mx-auto mb-2" />
+                      <p>No preview available</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
-} 
+}
+
+// Helper function to convert video URLs to embed format
+const getEmbedUrl = (url) => {
+  if (!url) return '';
+  
+  // Convert YouTube URLs to embed format
+  if (url.includes('youtube.com/watch')) {
+    const videoId = new URL(url).searchParams.get('v');
+    return `https://www.youtube.com/embed/${videoId}`;
+  }
+  
+  // Convert Vimeo URLs to embed format
+  if (url.includes('vimeo.com/')) {
+    const videoId = url.split('/').pop();
+    return `https://player.vimeo.com/video/${videoId}`;
+  }
+  
+  return url;
+}; 

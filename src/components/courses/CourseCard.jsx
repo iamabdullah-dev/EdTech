@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { API_URL } from '@/lib/utils/constants';
 
-const CourseCard = ({ course }) => {
+const CourseCard = ({ course, type = 'regular' }) => {
   // Handle both id and _id formats from different APIs
   const courseId = course._id || course.id;
   
@@ -87,8 +87,21 @@ const CourseCard = ({ course }) => {
   // Create default sample text if description is empty
   const sampleText = "This is a sample line bla bla bla bla ... more";
 
+  // Determine the appropriate link based on the type of card
+  let linkHref = '';
+  if (type === 'tutor') {
+    // For tutor's created courses
+    linkHref = `/my-courses/${courseId}/videos`;
+  } else if (type === 'enrolled') {
+    // For student's enrolled courses
+    linkHref = `/my-learning/${courseId}`;
+  } else {
+    // For regular course browsing
+    linkHref = `/courses/${courseId}`;
+  }
+
   return (
-    <Link href={`/my-courses/${courseId}/videos`}>
+    <Link href={linkHref}>
       <div className="bg-white rounded-lg shadow-md overflow-hidden transform transition-transform hover:scale-105 cursor-pointer">
         {/* Card Image Section */}
         <div className="relative w-full aspect-[4/3] bg-white">

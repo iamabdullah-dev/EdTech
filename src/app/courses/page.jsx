@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { FiSearch, FiFilter, FiX } from 'react-icons/fi';
 import { coursesAPI } from '@/services/api';
-import CourseCard from '@/components/ui/CourseCard';
+import CourseCard from '@/components/courses/CourseCard';
 import toast from 'react-hot-toast';
 
 export default function CoursesPage() {
@@ -21,12 +21,44 @@ export default function CoursesPage() {
     const fetchCourses = async () => {
       try {
         setLoading(true);
-        const response = await coursesAPI.getAllCourses();
-        setCourses(response.data.courses);
-        setFilteredCourses(response.data.courses);
+        console.log('Fetching courses from API directly...');
+        
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/courses`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+        });
+        
+        console.log('API response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`API responded with status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Courses API response data:', data);
+        
+        if (data.success) {
+          setCourses(data.courses || []);
+          setFilteredCourses(data.courses || []);
+          console.log(`Loaded ${data.courses?.length || 0} courses successfully`);
+        } else {
+          console.error('API returned success: false', data);
+          toast.error(data.message || 'Failed to load courses');
+        }
       } catch (error) {
         console.error('Failed to fetch courses:', error);
+        if (error.response) {
+          console.error('Error status:', error.response.status);
+          console.error('Error data:', error.response.data);
+        }
         toast.error('Failed to load courses. Please try again later.');
+        
+        // Set empty arrays to avoid undefined errors
+        setCourses([]);
+        setFilteredCourses([]);
       } finally {
         setLoading(false);
       }
@@ -219,7 +251,7 @@ export default function CoursesPage() {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredCourses.map((course) => (
-                <CourseCard key={course.id} course={course} />
+                <CourseCard key={course.id} course={course} type="regular" />
               ))}
             </div>
           </div>
