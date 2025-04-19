@@ -6,7 +6,7 @@ const path = require('path');
 // @route   POST /api/videos
 // @access  Public
 const uploadVideo = async (req, res) => {
-  const { title, description, courseId, sequenceOrder, tutorId } = req.body;
+  const { title, description, courseId, sequenceOrder, tutorId, url, type, duration } = req.body;
 
   if (!tutorId) {
     return res.status(400).json({
@@ -33,23 +33,30 @@ const uploadVideo = async (req, res) => {
       });
     }
 
-    // Check if file was uploaded
-    if (!req.file) {
+    let videoUrl = null;
+    let videoDuration = duration || 0;
+
+    // Handle different types of video sources
+    if (type === 'external' && url) {
+      // For external videos (YouTube, Vimeo, etc.)
+      videoUrl = url;
+    } else if (req.file) {
+      // For uploaded video files
+      videoUrl = `/uploads/${req.file.filename}`;
+    } else {
       return res.status(400).json({
         success: false,
-        message: 'Please upload a video file',
+        message: 'Please provide either a video URL or upload a video file',
       });
     }
-
-    const videoUrl = `/uploads/${req.file.filename}`;
 
     // Insert video record
     const result = await db.query(
       `INSERT INTO videos 
-      (course_id, title, description, video_url, sequence_order) 
-      VALUES ($1, $2, $3, $4, $5) 
+      (course_id, title, description, video_url, sequence_order, duration) 
+      VALUES ($1, $2, $3, $4, $5, $6) 
       RETURNING *`,
-      [courseId, title, description, videoUrl, sequenceOrder || 1]
+      [courseId, title, description, videoUrl, sequenceOrder || 1, videoDuration]
     );
 
     // Here you would normally call an AI service to generate transcription
@@ -68,7 +75,11 @@ const uploadVideo = async (req, res) => {
     console.error(error);
     // Remove the uploaded file in case of error
     if (req.file) {
-      fs.unlinkSync(req.file.path);
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.error('Error deleting file:', unlinkError);
+      }
     }
     res.status(500).json({
       success: false,
@@ -162,7 +173,7 @@ const getVideo = async (req, res) => {
 // @route   PUT /api/videos/:id
 // @access  Public
 const updateVideo = async (req, res) => {
-  const { title, description, sequenceOrder, tutorId } = req.body;
+  const { title, description, sequenceOrder, tutorId, url, type, duration } = req.body;
 
   if (!tutorId) {
     return res.status(400).json({
@@ -195,16 +206,43 @@ const updateVideo = async (req, res) => {
       });
     }
 
+    let videoUrl = videoCheck.rows[0].video_url;
+    let videoDuration = duration || videoCheck.rows[0].duration;
+
+    // Handle different types of video sources
+    if (type === 'external' && url) {
+      // For external videos (YouTube, Vimeo, etc.)
+      videoUrl = url;
+    } else if (req.file) {
+      // For uploaded video files
+      // If replacing a file, delete the old one
+      const oldVideoUrl = videoCheck.rows[0].video_url;
+      if (oldVideoUrl && oldVideoUrl.startsWith('/uploads/')) {
+        const oldVideoPath = path.join(__dirname, '../..', oldVideoUrl);
+        if (fs.existsSync(oldVideoPath)) {
+          try {
+            fs.unlinkSync(oldVideoPath);
+          } catch (err) {
+            console.error('Failed to delete old video file:', err);
+          }
+        }
+      }
+      
+      videoUrl = `/uploads/${req.file.filename}`;
+    }
+
     // Update the video
     const result = await db.query(
       `UPDATE videos 
       SET title = COALESCE($1, title), 
           description = COALESCE($2, description), 
           sequence_order = COALESCE($3, sequence_order),
+          video_url = COALESCE($4, video_url),
+          duration = COALESCE($5, duration),
           updated_at = NOW()
-      WHERE id = $4
+      WHERE id = $6
       RETURNING *`,
-      [title, description, sequenceOrder, req.params.id]
+      [title, description, sequenceOrder, videoUrl, videoDuration, req.params.id]
     );
 
     res.json({
@@ -213,6 +251,14 @@ const updateVideo = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    // Remove the uploaded file in case of error
+    if (req.file) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (err) {
+        console.error('Failed to delete uploaded file after error:', err);
+      }
+    }
     res.status(500).json({
       success: false,
       message: 'Server error',

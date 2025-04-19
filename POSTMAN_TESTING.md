@@ -204,7 +204,7 @@ pm.environment.set("courseId", pm.response.json().course.id);
 Response includes:
 - Course title, description, and thumbnail
 - Price
-- Number of students enrolled (enrollmentCount)
+- Number of students enrolled (students_enrolled)
 - Total course duration (totalHours, totalMinutes, formattedDuration)
 - Tutor name
 
@@ -225,7 +225,7 @@ Expected Response (200 OK):
       "created_at": "2023-04-20T08:30:45.123Z",
       "updated_at": "2023-04-20T08:30:45.123Z",
       "tutor_name": "Professor Chad",
-      "enrollmentCount": 0,
+      "students_enrolled": 0,
       "totalHours": 0,
       "totalMinutes": 0,
       "formattedDuration": "0h 0m"
@@ -242,7 +242,7 @@ Expected Response (200 OK):
 Response includes:
 - Course title, description, and thumbnail
 - Price
-- Number of students enrolled (enrollmentCount)
+- Number of students enrolled (students_enrolled)
 - Total course duration (totalHours, totalMinutes, formattedDuration)
 - Tutor information (name, bio, profile picture)
 - List of videos with details
@@ -265,7 +265,7 @@ Expected Response (200 OK):
     "tutor_bio": null,
     "tutor_profile_picture": null,
     "videos": [],
-    "enrollmentCount": 0,
+    "students_enrolled": 0,
     "totalHours": 0,
     "totalMinutes": 0,
     "formattedDuration": "0h 0m"

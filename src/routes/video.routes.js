@@ -29,27 +29,41 @@ const storage = multer.diskStorage({
   },
 });
 
+const videoFilter = function (req, file, cb) {
+  const filetypes = /mp4|mov|avi|wmv|mkv/;
+  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = file.mimetype.startsWith('video/');
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Error: Videos Only!'));
+  }
+};
+
+// Configure multer with storage and file filter
 const upload = multer({
   storage,
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB limit
-  fileFilter: function (req, file, cb) {
-    const filetypes = /mp4|mov|avi|wmv|mkv/;
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = file.mimetype.startsWith('video/');
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Error: Videos Only!'));
-    }
-  },
+  fileFilter: videoFilter,
 });
+
+// Conditional upload middleware that only applies when uploading files
+const conditionalUpload = (req, res, next) => {
+  // If the request indicates it's an external video (not a file upload)
+  if (req.body.type === 'external') {
+    return next();
+  }
+  
+  // Otherwise, apply the multer middleware for file uploads
+  return upload.single('video')(req, res, next);
+};
 
 // All routes
 router.get('/course/:courseId', getCourseVideos);
-router.post('/', upload.single('video'), uploadVideo);
 router.get('/:id', getVideo);
-router.put('/:id', updateVideo);
+router.post('/', conditionalUpload, uploadVideo);
+router.put('/:id', conditionalUpload, updateVideo);
 router.delete('/:id', deleteVideo);
 router.put('/:id/progress', updateProgress);
 

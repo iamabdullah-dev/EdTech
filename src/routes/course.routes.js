@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const { 
   getCourses, 
   getCourse, 
@@ -11,10 +12,16 @@ const {
   getTutorCourses 
 } = require('../controllers/course.controller');
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../../uploads/'));
+    cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -38,12 +45,30 @@ const upload = multer({
   },
 });
 
+// Log details about the file upload
+const logFileUpload = (req, res, next) => {
+  if (req.file) {
+    console.log('File uploaded:', {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      destination: req.file.destination,
+      filename: req.file.filename,
+      path: req.file.path,
+      size: req.file.size
+    });
+  } else if (req.method === 'POST' || req.method === 'PUT') {
+    console.log('No file detected in the request');
+  }
+  next();
+};
+
 // All routes
 router.get('/', getCourses);
-router.get('/:id', getCourse);
 router.get('/tutor/:tutorId', getTutorCourses);
-router.post('/', upload.single('thumbnail'), createCourse);
-router.put('/:id', upload.single('thumbnail'), updateCourse);
+router.get('/:id', getCourse);
+router.post('/', upload.single('thumbnail'), logFileUpload, createCourse);
+router.put('/:id', upload.single('thumbnail'), logFileUpload, updateCourse);
 router.delete('/:id', deleteCourse);
 
 module.exports = router; 

@@ -33,7 +33,7 @@ const getCourses = async (req, res) => {
       
       return {
         ...course,
-        enrollmentCount: parseInt(enrollmentCountResult.rows[0].count),
+        students_enrolled: parseInt(enrollmentCountResult.rows[0].count),
         totalHours: totalHours,
         totalMinutes: totalMinutes,
         formattedDuration: `${totalHours}h ${totalMinutes}m`
@@ -107,7 +107,7 @@ const getCourse = async (req, res) => {
       course: {
         ...course,
         videos: videos.rows,
-        enrollmentCount: parseInt(enrollmentCount.rows[0].count),
+        students_enrolled: parseInt(enrollmentCount.rows[0].count),
         totalHours: totalHours,
         totalMinutes: totalMinutes,
         formattedDuration: `${totalHours}h ${totalMinutes}m`
@@ -140,6 +140,9 @@ const createCourse = async (req, res) => {
   // Check if file was uploaded
   if (req.file) {
     thumbnailUrl = `/uploads/${req.file.filename}`;
+    console.log('Thumbnail uploaded, path:', thumbnailUrl);
+  } else {
+    console.log('No thumbnail file uploaded');
   }
 
   try {
@@ -169,6 +172,8 @@ const createCourse = async (req, res) => {
       `INSERT INTO chat_rooms (course_id, name) VALUES ($1, $2)`,
       [result.rows[0].id, `${title} Discussion`]
     );
+
+    console.log('Course created with thumbnail_url:', result.rows[0].thumbnail_url);
 
     res.status(201).json({
       success: true,
